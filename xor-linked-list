@@ -1,0 +1,134 @@
+XorLinkedList = class XorLinkedList {
+  static NOT_FOUND = 0xffff_ffff;
+  static INITIAL_CAPACITY = 7;
+  static MAX_CAPACITY = 0x3ff_ffff;
+  static ELEMENT_SIZE = 2;
+  static VALUE_OFFSET = 0;
+  static NEXT_OFFSET = 1;
+
+  constructor() {
+    this.capacity = XorLinkedList.INITIAL_CAPACITY;
+    this.size = 0;
+    this.head = XorLinkedList.NOT_FOUND;
+    this.tail = XorLinkedList.NOT_FOUND;
+    this.buffer = new Uint32Array(this.capacity * XorLinkedList.ELEMENT_SIZE);
+  }
+
+  get length() {
+    return this.size;
+  }
+
+  first() {
+    return this.head;
+  }
+
+  last() {
+    return this.tail;
+  }
+
+  isEmpty() {
+    return this.size === 0;
+  }
+
+  *[Symbol.iterator]() {
+    let current = this.head;
+    while (current != XorLinkedList.NOT_FOUND) {
+      yield this.buffer[current + XorLinkedList.VALUE_OFFSET];
+      current = this.buffer[current + XorLinkedList.NEXT_OFFSET];
+    }
+  }
+
+  allocate(value, address) {
+    this.ensureCapacity(this.size + 1);
+    let newAddress = XorLinkedList.ELEMENT_SIZE * this.size++;
+    this.buffer[newAddress + XorLinkedList.VALUE_OFFSET] = value;
+    this.buffer[newAddress + XorLinkedList.NEXT_OFFSET] = address;
+    return newAddress;
+  }
+
+  ensureCapacity(size) {
+    if (size > XorLinkedList.MAX_CAPACITY)
+      throw new Error("Unable to allocate memory.");
+    if (size <= this.capacity) return;
+    while (size > this.capacity)
+      this.capacity = Math.min(XorLinkedList.MAX_CAPACITY, this.capacity * 2 + 1);
+    this.buffer = new Uint32Array(this.buffer.buffer.transfer(
+      Uint32Array.BYTES_PER_ELEMENT * XorLinkedList.ELEMENT_SIZE * this.capacity));
+  }
+
+  append(value) {
+    const newAddress = this.allocate(value, XorLinkedList.NOT_FOUND);
+    if (this.size === 1)
+      this.head = newAddress;
+    else {
+      this.buffer[this.tail + XorLinkedList.NEXT_OFFSET] = newAddress;
+    }
+    return this.tail = newAddress;
+  }
+
+  prepend(value) {
+    const newAddress = this.allocate(value, this.head);
+    if (this.size === 1)
+      this.tail = newAddress;
+    return this.head = newAddress;
+  }
+
+  checkAddress(address) {
+    if (address === XorLinkedList.NOT_FOUND) return;
+    if (address >= this.size * XorLinkedList.ELEMENT_SIZE || address % XorLinkedList.ELEMENT_SIZE != XorLinkedList.VALUE_OFFSET) {
+      throw new Error(`Invalid address ${address}.`);
+    }
+  }
+
+  get(address) {
+    this.checkAddress(address);
+    return this.buffer[address + XorLinkedList.VALUE_OFFSET];
+  }
+
+  addressOf(value) {
+    let current = this.head;
+    while (current != XorLinkedList.NOT_FOUND) {
+      if (this.buffer[current + XorLinkedList.VALUE_OFFSET] === value) {
+        return current;
+      }
+      current = this.buffer[current + XorLinkedList.NEXT_OFFSET];
+    }
+    return XorLinkedList.NOT_FOUND;
+  }
+
+  insertBetween(value, address1, address2) {
+    this.checkAddress(address1);
+    this.checkAddress(address2);
+    if (address1 === XorLinkedList.NOT_FOUND) {
+      return this.prepend(value);
+    } else if (address2 === XorLinkedList.NOT_FOUND) {
+      return this.append(value);
+    };
+    let newAddress = this.allocate(value, address2);
+    return this.buffer[address1 + XorLinkedList.NEXT_OFFSET] = newAddress;
+  }
+
+  reverse() {
+    if (this.size === 0) return [];
+    if (this.size === 1) return;
+
+    let prev = XorLinkedList.NOT_FOUND;
+    let current = this.head;
+    let next;
+
+    let temp = this.tail;
+    this.tail = this.head;
+    this.head = temp;
+
+    while (current !== XorLinkedList.NOT_FOUND) {
+      next = this.buffer[current + XorLinkedList.NEXT_OFFSET];
+      this.buffer[current + XorLinkedList.NEXT_OFFSET] = prev;
+
+      prev = current;
+      current = next;
+    }
+    return this;
+  }
+}
+
+module.exports = XorLinkedList;
