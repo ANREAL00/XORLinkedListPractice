@@ -1,5 +1,6 @@
 XorLinkedList = class XorLinkedList {
   static NOT_FOUND = 0xffff_ffff;
+  static NULL_PTR = 0;
   static INITIAL_CAPACITY = 7;
   static MAX_CAPACITY = 0x3ff_ffff;
   static ELEMENT_SIZE = 2;
@@ -31,10 +32,13 @@ XorLinkedList = class XorLinkedList {
   }
 
   *[Symbol.iterator]() {
+    let prev = XorLinkedList.NOT_FOUND;
     let current = this.head;
     while (current != XorLinkedList.NOT_FOUND) {
       yield this.buffer[current + XorLinkedList.VALUE_OFFSET];
-      current = this.buffer[current + XorLinkedList.NEXT_OFFSET];
+      let next = (prev ^ this.buffer[current + XorLinkedList.NEXT_OFFSET]) >>> 0;
+      prev = current;
+      current = next;
     }
   }
 
@@ -57,19 +61,23 @@ XorLinkedList = class XorLinkedList {
   }
 
   append(value) {
-    const newAddress = this.allocate(value, XorLinkedList.NOT_FOUND);
-    if (this.size === 1)
+    const newAddress = this.allocate(value, (this.tail ^ XorLinkedList.NOT_FOUND) >>> 0);
+    if (this.size === 1) {
       this.head = newAddress;
-    else {
-      this.buffer[this.tail + XorLinkedList.NEXT_OFFSET] = newAddress;
+    } else {
+      // oldTail.xor = (prev ^ newNext) = (oldPrev ^ NOT_FOUND) ^ NOT_FOUND ^ newAddress
+      this.buffer[this.tail + XorLinkedList.NEXT_OFFSET] ^= (XorLinkedList.NOT_FOUND ^ newAddress);
     }
     return this.tail = newAddress;
   }
 
   prepend(value) {
-    const newAddress = this.allocate(value, this.head);
-    if (this.size === 1)
+    const newAddress = this.allocate(value, (this.head ^ XorLinkedList.NOT_FOUND) >>> 0);
+    if (this.size === 1) {
       this.tail = newAddress;
+    } else {
+      this.buffer[this.head + XorLinkedList.NEXT_OFFSET] ^= (XorLinkedList.NOT_FOUND ^ newAddress);
+    }
     return this.head = newAddress;
   }
 
@@ -86,12 +94,15 @@ XorLinkedList = class XorLinkedList {
   }
 
   addressOf(value) {
+    let prev = XorLinkedList.NOT_FOUND;
     let current = this.head;
     while (current != XorLinkedList.NOT_FOUND) {
       if (this.buffer[current + XorLinkedList.VALUE_OFFSET] === value) {
         return current;
       }
-      current = this.buffer[current + XorLinkedList.NEXT_OFFSET];
+      let next = (prev ^ this.buffer[current + XorLinkedList.NEXT_OFFSET]) >>> 0;
+      prev = current;
+      current = next;
     }
     return XorLinkedList.NOT_FOUND;
   }
@@ -104,29 +115,21 @@ XorLinkedList = class XorLinkedList {
     } else if (address2 === XorLinkedList.NOT_FOUND) {
       return this.append(value);
     };
-    let newAddress = this.allocate(value, address2);
-    return this.buffer[address1 + XorLinkedList.NEXT_OFFSET] = newAddress;
+
+    let newAddress = this.allocate(value, (address1 ^ address2) >>> 0);
+
+    // Update address1's pointer: old_xor ^ address2 ^ newAddress
+    this.buffer[address1 + XorLinkedList.NEXT_OFFSET] ^= (address2 ^ newAddress);
+    // Update address2's pointer: old_xor ^ address1 ^ newAddress
+    this.buffer[address2 + XorLinkedList.NEXT_OFFSET] ^= (address1 ^ newAddress);
+
+    return newAddress;
   }
 
   reverse() {
-    if (this.size === 0) return [];
-    if (this.size === 1) return;
-
-    let prev = XorLinkedList.NOT_FOUND;
-    let current = this.head;
-    let next;
-
     let temp = this.tail;
     this.tail = this.head;
     this.head = temp;
-
-    while (current !== XorLinkedList.NOT_FOUND) {
-      next = this.buffer[current + XorLinkedList.NEXT_OFFSET];
-      this.buffer[current + XorLinkedList.NEXT_OFFSET] = prev;
-
-      prev = current;
-      current = next;
-    }
     return this;
   }
 }
