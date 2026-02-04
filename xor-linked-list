@@ -65,7 +65,6 @@ XorLinkedList = class XorLinkedList {
     if (this.size === 1) {
       this.head = newAddress;
     } else {
-      // oldTail.xor = (prev ^ newNext) = (oldPrev ^ NOT_FOUND) ^ NOT_FOUND ^ newAddress
       this.buffer[this.tail + XorLinkedList.NEXT_OFFSET] ^= (XorLinkedList.NOT_FOUND ^ newAddress);
     }
     return this.tail = newAddress;
@@ -118,18 +117,14 @@ XorLinkedList = class XorLinkedList {
 
     let newAddress = this.allocate(value, (address1 ^ address2) >>> 0);
 
-    // Update address1's pointer: old_xor ^ address2 ^ newAddress
     this.buffer[address1 + XorLinkedList.NEXT_OFFSET] ^= (address2 ^ newAddress);
-    // Update address2's pointer: old_xor ^ address1 ^ newAddress
     this.buffer[address2 + XorLinkedList.NEXT_OFFSET] ^= (address1 ^ newAddress);
 
     return newAddress;
   }
 
   reverse() {
-    let temp = this.tail;
-    this.tail = this.head;
-    this.head = temp;
+    [this.head, this.tail] = [this.tail, this.head];
     return this;
   }
 }
